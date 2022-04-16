@@ -69,10 +69,6 @@ func main() {
 	}
 	defer client.Disconnect(250)
 
-	// if token := client.Publish(config.Topic, config.QoS, false, pubMessage); token.Wait() && token.Error() != nil {
-	// 	fmt.Printf("failed to publish %s: %v\n", config.Topic, token.Error())
-	// }
-
 	if err := mainLoop(client, config); err != nil {
 		panic(err)
 	}
