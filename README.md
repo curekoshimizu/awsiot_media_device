@@ -2,9 +2,9 @@
 
 When video or camera is on,
 this program will publish event on json data which is inputed by config yaml to AWS.
-When video and camera is off,
-this program will publish event off json data which is inputed by config yaml to AWS.
 
+On the other hand, when both video and camera are off,
+this program will publish event off json data to AWS.
 
 
 ## Config example
