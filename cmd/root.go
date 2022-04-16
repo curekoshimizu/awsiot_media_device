@@ -5,9 +5,10 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
+	"time"
 
+	mediaDevices "github.com/antonfisher/go-media-devices-state"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/spf13/cobra"
 	"gopkg.in/go-playground/validator.v9"
@@ -59,8 +60,6 @@ func main() {
 		panic(err)
 	}
 
-	pubMessage := `{"state": {"desired": {"on": false}}}`
-
 	opts := mqtt.NewClientOptions().
 		AddBroker(fmt.Sprintf("ssl://%s:%d", config.EndPoint, config.Port)).
 		SetTLSConfig(tlsConfig)
@@ -70,10 +69,54 @@ func main() {
 	}
 	defer client.Disconnect(250)
 
-	log.Printf("publishing %s...\n", config.Topic)
-	if token := client.Publish(config.Topic, config.QoS, false, pubMessage); token.Wait() && token.Error() != nil {
-		fmt.Printf("failed to publish %s: %v\n", config.Topic, token.Error())
+	// if token := client.Publish(config.Topic, config.QoS, false, pubMessage); token.Wait() && token.Error() != nil {
+	// 	fmt.Printf("failed to publish %s: %v\n", config.Topic, token.Error())
+	// }
+
+	if err := mainLoop(client, config); err != nil {
+		panic(err)
 	}
+}
+
+func mainLoop(client mqtt.Client, config Config) error {
+	var isOn *bool
+
+	for {
+		isCameraOn, err := mediaDevices.IsCameraOn()
+		if err != nil {
+			return err
+		}
+		isMicrophoneOn, err := mediaDevices.IsMicrophoneOn()
+		if err != nil {
+			return err
+		}
+
+		requiredState := isCameraOn || isMicrophoneOn
+		if isOn == nil || *isOn != requiredState {
+			var topic string
+			if requiredState {
+				topic = config.Event.On
+			} else {
+				topic = config.Event.Off
+			}
+			if err := publish(topic, client, config); err != nil {
+				fmt.Printf("failed to publish %s: %v\n", topic, err)
+			} else {
+				// Successfully updated
+				isOn = &requiredState
+			}
+		}
+
+		time.Sleep(time.Second * 1)
+	}
+
+}
+
+func publish(event string, client mqtt.Client, config Config) error {
+	if token := client.Publish(config.Topic, config.QoS, false, event); token.Wait() && token.Error() != nil {
+		return token.Error()
+	}
+	return nil
 }
 
 func newTLSConfig(config Config) (*tls.Config, error) {
